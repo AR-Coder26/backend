@@ -1,63 +1,78 @@
+// backend/src/app.js
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const morgan = require('morgan');
-const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
-const rateLimit = require('express-rate-limit');
 
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
-// -------- Global Middleware --------
+// Trust reverse proxy (Nginx/Vercel/Render) so req.ip and secure cookies work correctly behind it
+app.set('trust proxy', 1);
 
-// Security headers
+// Secure HTTP headers
 app.use(helmet());
 
-// CORS
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true,
-}));
+// CORS - only the configured frontend origin can call this API, with cookies allowed
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL,
+    credentials: true,
+  })
+);
 
-// Logging in development
+// Body parsers (10kb limit blocks oversized payload abuse)
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(cookieParser());
+
+// Gzip compression - important on slow mobile connections
+app.use(compression());
+
+// Strip Mongo operators ($gt, $where, etc.) from body/query/params to block NoSQL injection
+app.use(mongoSanitize());
+
+// Block HTTP Parameter Pollution (?price=100&price=1)
+app.use(hpp());
+
+// Dev-only request logging
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Rate limiting
+// Global rate limiter on all /api routes
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
-  message: 'Too many requests from this IP, please try again later.',
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests, please try again later.' },
 });
 app.use('/api', limiter);
 
-// Body parsers
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+// Health check - use this to verify the server is alive
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'API is healthy',
+    timestamp: new Date().toISOString(),
+  });
+});
 
-// Cookie parser
-app.use(cookieParser());
+// Feature routes (auth, products, categories, brands, orders) get mounted here starting Phase 3
 
-// Data sanitization against NoSQL injection
-app.use(mongoSanitize());
-
-// Prevent parameter pollution
-app.use(hpp());
-
-// Compression
-app.use(compression());
-
-// -------- Routes (to be connected in Phase 3) --------
-
-// -------- Error handling --------
+// Unmatched routes → 404
 app.use(notFound);
+
+// Centralized error handler - must be the last middleware
 app.use(errorHandler);
 
 module.exports = app;
-
