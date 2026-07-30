@@ -35,7 +35,11 @@ const errorHandler = (err, req, res, next) => {
     statusCode = 401;
     message = "Authentication token expired, please log in again";
   }
-
+  // Multer file-upload errors (oversized image, wrong field name, etc.) are client mistakes,
+  if (err.name === 'MulterError') {
+  statusCode = 400;
+  message = err.code === 'LIMIT_FILE_SIZE' ? 'Image file is too large (max 5MB allowed)' : err.message;
+  }
   res.status(statusCode).json({
     success: false,
     message,

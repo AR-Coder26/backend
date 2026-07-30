@@ -12,10 +12,13 @@ const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
 const adminAuthRoutes = require('./routes/adminAuth.routes');
 const customerAuthRoutes = require('./routes/customerAuth.routes');
+const categoryRoutes = require('./routes/category.routes');
+const categoryAdminRoutes = require('./routes/categoryAdmin.routes');
+const brandRoutes = require('./routes/brand.routes');
+const brandAdminRoutes = require('./routes/brandAdmin.routes');
 
 const app = express();
 
-// Trust reverse proxy (Nginx/Vercel/Render) so req.ip and secure cookies work correctly behind it
 app.set('trust proxy', 1);
 // Secure HTTP headers
 app.use(helmet());
@@ -65,9 +68,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Feature routes (auth, products, categories, brands, orders) get mounted here starting
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/auth', customerAuthRoutes);
-// Feature routes (auth, products, categories, brands, orders) get mounted here starting
+app.use('/api/categories', categoryRoutes);
+app.use('/api/admin/categories', categoryAdminRoutes);
+app.use('/api/brands', brandRoutes);
+app.use('/api/admin/brands', brandAdminRoutes);
 
 // Unmatched routes → 404
 app.use(notFound);
