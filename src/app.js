@@ -1,5 +1,3 @@
-// backend/src/app.js
-
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -12,15 +10,15 @@ const hpp = require('hpp');
 
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
+const adminAuthRoutes = require('./routes/adminAuth.routes');
+const customerAuthRoutes = require('./routes/customerAuth.routes');
 
 const app = express();
 
 // Trust reverse proxy (Nginx/Vercel/Render) so req.ip and secure cookies work correctly behind it
 app.set('trust proxy', 1);
-
 // Secure HTTP headers
 app.use(helmet());
-
 // CORS - only the configured frontend origin can call this API, with cookies allowed
 app.use(
   cors({
@@ -67,7 +65,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Feature routes (auth, products, categories, brands, orders) get mounted here starting Phase 3
+app.use('/api/admin/auth', adminAuthRoutes);
+app.use('/api/auth', customerAuthRoutes);
+// Feature routes (auth, products, categories, brands, orders) get mounted here starting
 
 // Unmatched routes → 404
 app.use(notFound);
