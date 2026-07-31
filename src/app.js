@@ -16,9 +16,12 @@ const categoryRoutes = require('./routes/category.routes');
 const categoryAdminRoutes = require('./routes/categoryAdmin.routes');
 const brandRoutes = require('./routes/brand.routes');
 const brandAdminRoutes = require('./routes/brandAdmin.routes');
+const productRoutes = require('./routes/product.routes');
+const productAdminRoutes = require('./routes/productAdmin.routes');
 
 const app = express();
 
+// Trust reverse proxy (Nginx/Vercel/Render) so req.ip and secure cookies work correctly behind it
 app.set('trust proxy', 1);
 // Secure HTTP headers
 app.use(helmet());
@@ -75,6 +78,8 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/admin/categories', categoryAdminRoutes);
 app.use('/api/brands', brandRoutes);
 app.use('/api/admin/brands', brandAdminRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/admin/products', productAdminRoutes);
 
 // Unmatched routes → 404
 app.use(notFound);
