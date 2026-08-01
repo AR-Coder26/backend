@@ -1,5 +1,3 @@
-// backend/src/controllers/customerAuth.controller.js
-
 const asyncHandler = require('express-async-handler');
 const jwt = require('jsonwebtoken');
 const Customer = require('../models/Customer.model');
