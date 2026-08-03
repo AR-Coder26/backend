@@ -4,22 +4,15 @@ const Product = require('../models/Product.model');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const { generateOrderWhatsAppLink } = require('../utils/whatsappLink');
+const { sendNewOrderAlertEmail } = require('../utils/mailer');
 
-// Attaches a click-to-send WhatsApp link (Option B - no paid API) to any order response, so the
-// admin dashboard can render a one-click "message customer" button reflecting the order's
-// current status. This is derived on read, never stored in the database.
 const attachWhatsAppLink = (order) => ({
   ...order.toObject(),
   whatsappLink: generateOrderWhatsAppLink(order),
 });
 
-// Escapes regex special characters before building a RegExp from raw user input (admin search) -
-// without this, a search string like "(a+)+$" could cause a ReDoS or unexpected regex behavior.
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Restores stock for every item in an order - used by guest cancel, customer cancel, and admin
-// cancel/status-change. Matches by variantSku (stored on the order snapshot) rather than variant
-// _id, since that's the durable identifier actually saved on each order line item.
 const restoreOrderStock = async (order) => {
   await Promise.all(
     order.items.map((item) =>
@@ -35,15 +28,14 @@ const VALID_STATUS_TRANSITIONS = {
   Pending: ['Confirmed', 'Cancelled'],
   Confirmed: ['Shipped', 'Cancelled'],
   Shipped: ['Delivered', 'Cancelled'],
-  Delivered: [], // terminal - no further changes once delivered
-  Cancelled: [], // terminal
+  Delivered: [],
+  Cancelled: [],
 };
 
 // POST /api/orders (public - attachCustomerIfLoggedIn middleware may set req.customer)
 const createOrder = asyncHandler(async (req, res) => {
   const { customer, addressId, shippingAddress, items, paymentMethod } = req.body;
 
-  // Resolve the shipping address: either a logged-in customer's saved address, or the inline one
   let resolvedAddress = shippingAddress;
   if (addressId) {
     if (!req.customer) {
@@ -60,8 +52,6 @@ const createOrder = asyncHandler(async (req, res) => {
     };
   }
 
-  // Validate every item against REAL product/variant data in the database - price and product
-  // name are always taken from here, never from what the client sent in the request.
   const orderItems = [];
   const decrementPlan = [];
 
@@ -99,9 +89,6 @@ const createOrder = asyncHandler(async (req, res) => {
     });
   }
 
-  // Atomically decrement stock per item (the $gte guard makes each single-document update safe
-  // under concurrency, even without multi-document transactions). Roll back everything already
-  // decremented in THIS request if any later item fails.
   const decremented = [];
   try {
     for (const plan of decrementPlan) {
@@ -140,9 +127,9 @@ const createOrder = asyncHandler(async (req, res) => {
     });
 
     res.status(201).json(new ApiResponse(201, attachWhatsAppLink(order), 'Order placed successfully'));
+
+    sendNewOrderAlertEmail(order);
   } catch (err) {
-    // Any failure past this point (insufficient stock on a later item, below minimum order value,
-    // etc.) means the whole order is rejected - restore every stock decrement made so far.
     if (decremented.length > 0) {
       await Promise.all(
         decremented.map((plan) =>
@@ -169,7 +156,7 @@ const lookupGuestOrder = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Order fetched'));
 });
 
-// PATCH /api/orders/cancel (public - guest cancellation; orderNumber+phone acts as proof of ownership)
+// PATCH /api/orders/cancel (public - guest cancellation)
 const cancelGuestOrder = asyncHandler(async (req, res) => {
   const { orderNumber, phone, cancelReason } = req.body;
 
@@ -187,6 +174,7 @@ const cancelGuestOrder = asyncHandler(async (req, res) => {
   order.orderStatus = 'Cancelled';
   order.cancelReason = cancelReason || 'Cancelled by customer';
   order.cancelledAt = new Date();
+  order.isSeenByAdmin = false; // customer-initiated change - admin needs to notice this
   await order.save();
 
   res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Order cancelled successfully'));
@@ -238,6 +226,7 @@ const cancelMyOrder = asyncHandler(async (req, res) => {
   order.orderStatus = 'Cancelled';
   order.cancelReason = req.body.cancelReason || 'Cancelled by customer';
   order.cancelledAt = new Date();
+  order.isSeenByAdmin = false; // customer-initiated change - admin needs to notice this
   await order.save();
 
   res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Order cancelled successfully'));
@@ -282,7 +271,29 @@ const getOrderByIdAdmin = asyncHandler(async (req, res) => {
   if (!order) {
     throw ApiError.notFound('Order not found');
   }
+
+  // Opening the order detail is a natural "admin has seen this" signal for the dashboard badge
+  if (!order.isSeenByAdmin) {
+    order.isSeenByAdmin = true;
+    await order.save();
+  }
+
   res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Order fetched'));
+});
+
+// GET /api/admin/orders/notifications/count
+const getUnseenOrdersCount = asyncHandler(async (req, res) => {
+  const count = await Order.countDocuments({ isSeenByAdmin: false });
+  res.status(200).json(new ApiResponse(200, { count }, 'Unseen order count fetched'));
+});
+
+// PATCH /api/admin/orders/:id/mark-seen
+const markOrderSeen = asyncHandler(async (req, res) => {
+  const order = await Order.findByIdAndUpdate(req.params.id, { isSeenByAdmin: true }, { new: true });
+  if (!order) {
+    throw ApiError.notFound('Order not found');
+  }
+  res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Order marked as seen'));
 });
 
 // PATCH /api/admin/orders/:id/status
@@ -327,5 +338,7 @@ module.exports = {
   cancelMyOrder,
   getAllOrdersAdmin,
   getOrderByIdAdmin,
+  getUnseenOrdersCount,
+  markOrderSeen,
   updateOrderStatus,
 };

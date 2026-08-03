@@ -3,8 +3,6 @@ const mongoose = require('mongoose');
 const PAYMENT_METHODS = ['COD', 'JazzCash', 'EasyPaisa'];
 const ORDER_STATUSES = ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'];
 
-// Snapshot of exactly what was purchased at exactly what price — deliberately duplicated data,
-// NOT a live lookup, so historical orders never change if the product is edited/deleted later.
 const orderItemSchema = new mongoose.Schema(
   {
     product: {
@@ -124,6 +122,11 @@ const orderSchema = new mongoose.Schema(
     adminNotes: {
       type: String,
       default: '',
+    },
+    isSeenByAdmin: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   { timestamps: true }
