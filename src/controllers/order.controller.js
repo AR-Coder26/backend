@@ -3,9 +3,23 @@ const Order = require('../models/Order.model');
 const Product = require('../models/Product.model');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
+const { generateOrderWhatsAppLink } = require('../utils/whatsappLink');
 
+// Attaches a click-to-send WhatsApp link (Option B - no paid API) to any order response, so the
+// admin dashboard can render a one-click "message customer" button reflecting the order's
+// current status. This is derived on read, never stored in the database.
+const attachWhatsAppLink = (order) => ({
+  ...order.toObject(),
+  whatsappLink: generateOrderWhatsAppLink(order),
+});
+
+// Escapes regex special characters before building a RegExp from raw user input (admin search) -
+// without this, a search string like "(a+)+$" could cause a ReDoS or unexpected regex behavior.
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Restores stock for every item in an order - used by guest cancel, customer cancel, and admin
+// cancel/status-change. Matches by variantSku (stored on the order snapshot) rather than variant
+// _id, since that's the durable identifier actually saved on each order line item.
 const restoreOrderStock = async (order) => {
   await Promise.all(
     order.items.map((item) =>
@@ -21,14 +35,15 @@ const VALID_STATUS_TRANSITIONS = {
   Pending: ['Confirmed', 'Cancelled'],
   Confirmed: ['Shipped', 'Cancelled'],
   Shipped: ['Delivered', 'Cancelled'],
-  Delivered: [],
-  Cancelled: [],
+  Delivered: [], // terminal - no further changes once delivered
+  Cancelled: [], // terminal
 };
 
 // POST /api/orders (public - attachCustomerIfLoggedIn middleware may set req.customer)
 const createOrder = asyncHandler(async (req, res) => {
   const { customer, addressId, shippingAddress, items, paymentMethod } = req.body;
 
+  // Resolve the shipping address: either a logged-in customer's saved address, or the inline one
   let resolvedAddress = shippingAddress;
   if (addressId) {
     if (!req.customer) {
@@ -45,6 +60,8 @@ const createOrder = asyncHandler(async (req, res) => {
     };
   }
 
+  // Validate every item against REAL product/variant data in the database - price and product
+  // name are always taken from here, never from what the client sent in the request.
   const orderItems = [];
   const decrementPlan = [];
 
@@ -82,6 +99,9 @@ const createOrder = asyncHandler(async (req, res) => {
     });
   }
 
+  // Atomically decrement stock per item (the $gte guard makes each single-document update safe
+  // under concurrency, even without multi-document transactions). Roll back everything already
+  // decremented in THIS request if any later item fails.
   const decremented = [];
   try {
     for (const plan of decrementPlan) {
@@ -119,8 +139,10 @@ const createOrder = asyncHandler(async (req, res) => {
       paymentMethod,
     });
 
-    res.status(201).json(new ApiResponse(201, order, 'Order placed successfully'));
+    res.status(201).json(new ApiResponse(201, attachWhatsAppLink(order), 'Order placed successfully'));
   } catch (err) {
+    // Any failure past this point (insufficient stock on a later item, below minimum order value,
+    // etc.) means the whole order is rejected - restore every stock decrement made so far.
     if (decremented.length > 0) {
       await Promise.all(
         decremented.map((plan) =>
@@ -144,10 +166,10 @@ const lookupGuestOrder = asyncHandler(async (req, res) => {
     throw ApiError.notFound('Order not found. Check your order number and phone number.');
   }
 
-  res.status(200).json(new ApiResponse(200, order, 'Order fetched'));
+  res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Order fetched'));
 });
 
-// PATCH /api/orders/cancel (public - guest cancellation)
+// PATCH /api/orders/cancel (public - guest cancellation; orderNumber+phone acts as proof of ownership)
 const cancelGuestOrder = asyncHandler(async (req, res) => {
   const { orderNumber, phone, cancelReason } = req.body;
 
@@ -167,7 +189,7 @@ const cancelGuestOrder = asyncHandler(async (req, res) => {
   order.cancelledAt = new Date();
   await order.save();
 
-  res.status(200).json(new ApiResponse(200, order, 'Order cancelled successfully'));
+  res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Order cancelled successfully'));
 });
 
 // GET /api/my-orders (protectCustomer)
@@ -183,7 +205,11 @@ const getMyOrders = asyncHandler(async (req, res) => {
   ]);
 
   res.status(200).json(
-    new ApiResponse(200, { orders, total, page: pageNum, totalPages: Math.ceil(total / limitNum) }, 'Orders fetched')
+    new ApiResponse(
+      200,
+      { orders: orders.map(attachWhatsAppLink), total, page: pageNum, totalPages: Math.ceil(total / limitNum) },
+      'Orders fetched'
+    )
   );
 });
 
@@ -193,7 +219,7 @@ const getMyOrderById = asyncHandler(async (req, res) => {
   if (!order) {
     throw ApiError.notFound('Order not found');
   }
-  res.status(200).json(new ApiResponse(200, order, 'Order fetched'));
+  res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Order fetched'));
 });
 
 // PATCH /api/my-orders/:id/cancel (protectCustomer)
@@ -214,7 +240,7 @@ const cancelMyOrder = asyncHandler(async (req, res) => {
   order.cancelledAt = new Date();
   await order.save();
 
-  res.status(200).json(new ApiResponse(200, order, 'Order cancelled successfully'));
+  res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Order cancelled successfully'));
 });
 
 // GET /api/admin/orders
@@ -242,7 +268,11 @@ const getAllOrdersAdmin = asyncHandler(async (req, res) => {
   ]);
 
   res.status(200).json(
-    new ApiResponse(200, { orders, total, page: pageNum, totalPages: Math.ceil(total / limitNum) }, 'Orders fetched')
+    new ApiResponse(
+      200,
+      { orders: orders.map(attachWhatsAppLink), total, page: pageNum, totalPages: Math.ceil(total / limitNum) },
+      'Orders fetched'
+    )
   );
 });
 
@@ -252,7 +282,7 @@ const getOrderByIdAdmin = asyncHandler(async (req, res) => {
   if (!order) {
     throw ApiError.notFound('Order not found');
   }
-  res.status(200).json(new ApiResponse(200, order, 'Order fetched'));
+  res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Order fetched'));
 });
 
 // PATCH /api/admin/orders/:id/status
@@ -285,7 +315,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
   await order.save();
 
-  res.status(200).json(new ApiResponse(200, order, 'Order updated successfully'));
+  res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Order updated successfully'));
 });
 
 module.exports = {

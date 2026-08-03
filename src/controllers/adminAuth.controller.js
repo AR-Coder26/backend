@@ -11,7 +11,6 @@ const login = asyncHandler(async (req, res) => {
 
   const admin = await User.findOne({ email: email.toLowerCase().trim() }).select('+password');
   if (!admin || !admin.isActive) {
-    // Deliberately identical message whether the email doesn't exist or the password is wrong
     throw ApiError.unauthorized('Invalid email or password');
   }
 
@@ -46,15 +45,20 @@ const login = asyncHandler(async (req, res) => {
 
 // POST /api/admin/auth/logout
 const logout = asyncHandler(async (req, res) => {
-  if (req.admin) {
-    req.admin.refreshTokenHash = null;
-    await req.admin.save({ validateBeforeSave: false });
-  }
 
   clearAuthCookies(res, {
     accessCookieName: COOKIE_NAMES.admin.access,
     refreshCookieName: COOKIE_NAMES.admin.refresh,
   });
+
+  if (req.admin) {
+    try {
+      req.admin.refreshTokenHash = null;
+      await req.admin.save({ validateBeforeSave: false });
+    } catch (err) {
+      console.error('Failed to invalidate admin refresh token on logout:', err.message);
+    }
+  }
 
   res.status(200).json(new ApiResponse(200, null, 'Logged out successfully'));
 });
@@ -83,7 +87,6 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     throw ApiError.unauthorized('Refresh token no longer valid. Please log in again.');
   }
 
-  // Rotate: issue a brand new refresh token and invalidate the old one on every use.
   const newAccessToken = admin.generateAccessToken();
   const newRefreshToken = admin.generateRefreshToken();
   await admin.setRefreshTokenHash(newRefreshToken);

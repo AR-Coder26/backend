@@ -1,4 +1,5 @@
 const { body } = require('express-validator');
+const { noDangerousHtml } = require('./sharedValidators');
 
 const adminLoginValidator = [
   body('email').trim().notEmpty().withMessage('Email is required').isEmail().withMessage('Provide a valid email'),
@@ -6,7 +7,7 @@ const adminLoginValidator = [
 ];
 
 const customerRegisterValidator = [
-  body('name').trim().notEmpty().withMessage('Name is required'),
+  body('name').trim().notEmpty().withMessage('Name is required').custom(noDangerousHtml),
   body('email').optional({ checkFalsy: true }).isEmail().withMessage('Provide a valid email'),
   body('phone')
     .optional({ checkFalsy: true })

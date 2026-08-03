@@ -1,4 +1,5 @@
 const { body, param } = require('express-validator');
+const { noDangerousHtml } = require('./sharedValidators');
 
 const createBrandValidator = [
   body('name')
@@ -6,7 +7,8 @@ const createBrandValidator = [
     .notEmpty()
     .withMessage('Brand name is required')
     .isLength({ max: 60 })
-    .withMessage('Brand name cannot exceed 60 characters'),
+    .withMessage('Brand name cannot exceed 60 characters')
+    .custom(noDangerousHtml),
 ];
 
 const updateBrandValidator = [
@@ -17,7 +19,8 @@ const updateBrandValidator = [
     .notEmpty()
     .withMessage('Brand name cannot be empty')
     .isLength({ max: 60 })
-    .withMessage('Brand name cannot exceed 60 characters'),
+    .withMessage('Brand name cannot exceed 60 characters')
+    .custom(noDangerousHtml),
   body('isActive').optional().isBoolean(),
 ];
 

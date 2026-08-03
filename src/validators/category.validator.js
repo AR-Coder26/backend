@@ -1,4 +1,7 @@
+// backend/src/validators/category.validator.js
+
 const { body, param } = require('express-validator');
+const { noDangerousHtml } = require('./sharedValidators');
 
 const createCategoryValidator = [
   body('name')
@@ -6,11 +9,13 @@ const createCategoryValidator = [
     .notEmpty()
     .withMessage('Category name is required')
     .isLength({ max: 60 })
-    .withMessage('Category name cannot exceed 60 characters'),
+    .withMessage('Category name cannot exceed 60 characters')
+    .custom(noDangerousHtml),
   body('description')
     .optional({ checkFalsy: true })
     .isLength({ max: 500 })
-    .withMessage('Description cannot exceed 500 characters'),
+    .withMessage('Description cannot exceed 500 characters')
+    .custom(noDangerousHtml),
   body('displayOrder').optional().isInt().withMessage('Display order must be a number'),
 ];
 
@@ -22,8 +27,9 @@ const updateCategoryValidator = [
     .notEmpty()
     .withMessage('Category name cannot be empty')
     .isLength({ max: 60 })
-    .withMessage('Category name cannot exceed 60 characters'),
-  body('description').optional({ checkFalsy: true }).isLength({ max: 500 }),
+    .withMessage('Category name cannot exceed 60 characters')
+    .custom(noDangerousHtml),
+  body('description').optional({ checkFalsy: true }).isLength({ max: 500 }).custom(noDangerousHtml),
   body('displayOrder').optional().isInt(),
   body('isActive').optional().isBoolean(),
 ];

@@ -1,7 +1,15 @@
 const { body, param, query } = require('express-validator');
+const { noDangerousHtml } = require('./sharedValidators');
+
+const cancelReasonRule = body('cancelReason')
+  .optional({ checkFalsy: true })
+  .trim()
+  .isLength({ max: 500 })
+  .withMessage('Cancel reason cannot exceed 500 characters')
+  .custom(noDangerousHtml);
 
 const createOrderValidator = [
-  body('customer.name').trim().notEmpty().withMessage('Customer name is required'),
+  body('customer.name').trim().notEmpty().withMessage('Customer name is required').custom(noDangerousHtml),
   body('customer.phone')
     .trim()
     .matches(/^(\+92|0)3\d{9}$/)
@@ -34,14 +42,19 @@ const guestOrderLookupValidator = [
 const guestOrderCancelValidator = [
   body('orderNumber').trim().notEmpty().withMessage('Order number is required'),
   body('phone').trim().notEmpty().withMessage('Phone number is required'),
+  cancelReasonRule,
 ];
 
 const orderIdValidator = [param('id').isMongoId().withMessage('Invalid order ID')];
 
+// Used by the logged-in customer's own cancel endpoint (PATCH /api/my-orders/:id/cancel)
+const customerCancelValidator = [param('id').isMongoId().withMessage('Invalid order ID'), cancelReasonRule];
+
 const updateOrderStatusValidator = [
   param('id').isMongoId().withMessage('Invalid order ID'),
   body('orderStatus').optional().isIn(['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled']),
-  body('adminNotes').optional().isString(),
+  body('adminNotes').optional().trim().isLength({ max: 1000 }).custom(noDangerousHtml),
+  cancelReasonRule,
 ];
 
 module.exports = {
@@ -49,5 +62,6 @@ module.exports = {
   guestOrderLookupValidator,
   guestOrderCancelValidator,
   orderIdValidator,
+  customerCancelValidator,
   updateOrderStatusValidator,
 };

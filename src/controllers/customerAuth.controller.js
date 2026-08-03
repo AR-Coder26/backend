@@ -89,15 +89,19 @@ const login = asyncHandler(async (req, res) => {
 
 // POST /api/auth/logout
 const logout = asyncHandler(async (req, res) => {
-  if (req.customer) {
-    req.customer.refreshTokenHash = null;
-    await req.customer.save({ validateBeforeSave: false });
-  }
-
   clearAuthCookies(res, {
     accessCookieName: COOKIE_NAMES.customer.access,
     refreshCookieName: COOKIE_NAMES.customer.refresh,
   });
+
+  if (req.customer) {
+    try {
+      req.customer.refreshTokenHash = null;
+      await req.customer.save({ validateBeforeSave: false });
+    } catch (err) {
+      console.error('Failed to invalidate customer refresh token on logout:', err.message);
+    }
+  }
 
   res.status(200).json(new ApiResponse(200, null, 'Logged out successfully'));
 });

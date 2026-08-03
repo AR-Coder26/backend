@@ -1,4 +1,5 @@
 const { body, param } = require('express-validator');
+const { noDangerousHtml } = require('./sharedValidators');
 
 const FABRIC_TYPES = ['Lawn', 'Cotton', 'Khaddar', 'Chiffon', 'Silk', 'Georgette', 'Linen', 'Other'];
 const SIZES = ['S', 'M', 'L', 'XL'];
@@ -20,6 +21,7 @@ const validateVariantsPayload = (value) => {
     if (!v.color || !v.size || !v.fabricStatus || v.price === undefined || v.stock === undefined) {
       throw new Error('Each variant needs color, size, fabricStatus, price, and stock');
     }
+    noDangerousHtml(v.color);
     if (!SIZES.includes(v.size)) {
       throw new Error(`Invalid variant size: ${v.size}`);
     }
@@ -35,8 +37,8 @@ const validateVariantsPayload = (value) => {
 };
 
 const createProductValidator = [
-  body('name').trim().notEmpty().withMessage('Product name is required').isLength({ max: 150 }),
-  body('description').trim().notEmpty().withMessage('Description is required'),
+  body('name').trim().notEmpty().withMessage('Product name is required').isLength({ max: 150 }).custom(noDangerousHtml),
+  body('description').trim().notEmpty().withMessage('Description is required').custom(noDangerousHtml),
   body('category').notEmpty().withMessage('Category is required').isMongoId().withMessage('Invalid category ID'),
   body('brand').notEmpty().withMessage('Brand is required').isMongoId().withMessage('Invalid brand ID'),
   body('fabricType')
@@ -55,8 +57,14 @@ const createProductValidator = [
 
 const updateProductValidator = [
   param('id').isMongoId().withMessage('Invalid product ID'),
-  body('name').optional().trim().notEmpty().withMessage('Product name cannot be empty').isLength({ max: 150 }),
-  body('description').optional().trim().notEmpty().withMessage('Description cannot be empty'),
+  body('name')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Product name cannot be empty')
+    .isLength({ max: 150 })
+    .custom(noDangerousHtml),
+  body('description').optional().trim().notEmpty().withMessage('Description cannot be empty').custom(noDangerousHtml),
   body('category').optional().isMongoId().withMessage('Invalid category ID'),
   body('brand').optional().isMongoId().withMessage('Invalid brand ID'),
   body('fabricType').optional().isIn(FABRIC_TYPES).withMessage('Invalid fabric type'),
