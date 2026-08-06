@@ -1,6 +1,7 @@
 const asyncHandler = require('express-async-handler');
 const Order = require('../models/Order.model');
 const Product = require('../models/Product.model');
+const StoreSettings = require('../models/StoreSettings.model');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const { generateOrderWhatsAppLink } = require('../utils/whatsappLink');
@@ -35,6 +36,16 @@ const VALID_STATUS_TRANSITIONS = {
 // POST /api/orders (public - attachCustomerIfLoggedIn middleware may set req.customer)
 const createOrder = asyncHandler(async (req, res) => {
   const { customer, addressId, shippingAddress, items, paymentMethod } = req.body;
+
+  // Never trust that a manual payment method (JazzCash/EasyPaisa) is actually available just
+  // because it's in the enum - the admin may not have configured/activated it yet in StoreSettings.
+  if (paymentMethod === 'JazzCash' || paymentMethod === 'EasyPaisa') {
+    const settings = await StoreSettings.getSingleton();
+    const methodKey = paymentMethod === 'JazzCash' ? 'jazzCash' : 'easyPaisa';
+    if (!settings[methodKey].isActive) {
+      throw ApiError.badRequest(`${paymentMethod} is not currently available. Please choose a different payment method.`);
+    }
+  }
 
   let resolvedAddress = shippingAddress;
   if (addressId) {
