@@ -22,6 +22,8 @@ const orderRoutes = require('./routes/order.routes');
 const customerOrderRoutes = require('./routes/customerOrder.routes');
 const orderAdminRoutes = require('./routes/orderAdmin.routes');
 const customerAddressRoutes = require('./routes/customerAddress.routes');
+const storeSettingsRoutes = require('./routes/storeSettings.routes');
+const storeSettingsAdminRoutes = require('./routes/storeSettingsAdmin.routes');
 
 const app = express();
 
@@ -88,6 +90,8 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/my-orders', customerOrderRoutes);
 app.use('/api/admin/orders', orderAdminRoutes);
 app.use('/api/my-addresses', customerAddressRoutes);
+app.use('/api/store-settings', storeSettingsRoutes);
+app.use('/api/admin/store-settings', storeSettingsAdminRoutes);
 
 // Unmatched routes → 404
 app.use(notFound);
