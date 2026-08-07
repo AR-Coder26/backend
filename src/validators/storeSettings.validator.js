@@ -8,6 +8,14 @@ const paymentAccountFieldRules = (prefix) => [
   body(`${prefix}.isActive`).optional().isBoolean(),
 ];
 
-const updateStoreSettingsValidator = [...paymentAccountFieldRules('jazzCash'), ...paymentAccountFieldRules('easyPaisa')];
+const updateStoreSettingsValidator = [
+  ...paymentAccountFieldRules('jazzCash'),
+  ...paymentAccountFieldRules('easyPaisa'),
+  body('minOrderValue').optional().isFloat({ min: 0 }).withMessage('Minimum order value cannot be negative'),
+  body('deliveryFlatRateNonKarachi')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Delivery charge cannot be negative'),
+];
 
 module.exports = { updateStoreSettingsValidator };

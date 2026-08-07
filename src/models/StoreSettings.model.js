@@ -17,6 +17,17 @@ const storeSettingsSchema = new mongoose.Schema(
   {
     jazzCash: { type: paymentAccountSchema, default: () => ({}) },
     easyPaisa: { type: paymentAccountSchema, default: () => ({}) },
+
+  minOrderValue: {
+      type: Number,
+      default: 0,
+      min: [0, 'Minimum order value cannot be negative'],
+    },
+    deliveryFlatRateNonKarachi: {
+      type: Number,
+      default: 200,
+      min: [0, 'Delivery charge cannot be negative'],
+    },
   },
   { timestamps: true }
 );

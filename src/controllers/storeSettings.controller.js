@@ -36,6 +36,8 @@ const getPublicPaymentSettings = asyncHandler(async (req, res) => {
         }
       : null,
   };
+  publicPayload.minOrderValue = settings.minOrderValue;
+  publicPayload.deliveryFlatRateNonKarachi = settings.deliveryFlatRateNonKarachi;
 
   res.status(200).json(new ApiResponse(200, publicPayload, 'Payment settings fetched'));
 });
@@ -48,7 +50,7 @@ const getAdminStoreSettings = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/store-settings
 const updateStoreSettings = asyncHandler(async (req, res) => {
-  const { jazzCash, easyPaisa } = req.body;
+  const { jazzCash, easyPaisa, minOrderValue, deliveryFlatRateNonKarachi } = req.body;
 
   const settings = await StoreSettings.getSingleton();
 
@@ -57,6 +59,12 @@ const updateStoreSettings = asyncHandler(async (req, res) => {
   }
   if (easyPaisa) {
     settings.easyPaisa = mergeAndValidateAccount(settings.easyPaisa, easyPaisa, 'EasyPaisa');
+  }
+  if (minOrderValue !== undefined) {
+    settings.minOrderValue = minOrderValue;
+  }
+  if (deliveryFlatRateNonKarachi !== undefined) {
+    settings.deliveryFlatRateNonKarachi = deliveryFlatRateNonKarachi;
   }
 
   await settings.save();

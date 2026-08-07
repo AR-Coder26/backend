@@ -37,10 +37,13 @@ const VALID_STATUS_TRANSITIONS = {
 const createOrder = asyncHandler(async (req, res) => {
   const { customer, addressId, shippingAddress, items, paymentMethod } = req.body;
 
+  // Fetched once, reused below for both the payment-method-active check and the
+  // minOrderValue/delivery-charge calculation - avoids a second DB round trip.
+  const settings = await StoreSettings.getSingleton();
+
   // Never trust that a manual payment method (JazzCash/EasyPaisa) is actually available just
   // because it's in the enum - the admin may not have configured/activated it yet in StoreSettings.
   if (paymentMethod === 'JazzCash' || paymentMethod === 'EasyPaisa') {
-    const settings = await StoreSettings.getSingleton();
     const methodKey = paymentMethod === 'JazzCash' ? 'jazzCash' : 'easyPaisa';
     if (!settings[methodKey].isActive) {
       throw ApiError.badRequest(`${paymentMethod} is not currently available. Please choose a different payment method.`);
@@ -114,13 +117,13 @@ const createOrder = asyncHandler(async (req, res) => {
     }
 
     const subtotal = orderItems.reduce((sum, i) => sum + i.subtotal, 0);
-    const minOrderValue = Number(process.env.MIN_ORDER_VALUE) || 0;
+    const minOrderValue = settings.minOrderValue || 0;
     if (subtotal < minOrderValue) {
       throw ApiError.badRequest(`Minimum order value is Rs. ${minOrderValue}`);
     }
 
     const isKarachi = resolvedAddress.city.trim().toLowerCase() === 'karachi';
-    const deliveryCharge = isKarachi ? 0 : Number(process.env.DELIVERY_FLAT_RATE_NON_KARACHI) || 0;
+    const deliveryCharge = isKarachi ? 0 : settings.deliveryFlatRateNonKarachi || 0;
 
     const order = await Order.create({
       customerAccount: req.customer ? req.customer._id : null,
