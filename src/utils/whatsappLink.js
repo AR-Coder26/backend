@@ -1,3 +1,7 @@
+
+// Converts any accepted phone format (0300..., +92300...) into the digits-only, no-plus
+// format required by wa.me links (e.g. 923001234567).
+const { BRAND_LINE } = require('./branding');
 const toWhatsAppFormat = (phone) => {
   if (!phone) return null;
   const trimmed = phone.trim();
@@ -9,7 +13,7 @@ const toWhatsAppFormat = (phone) => {
 
 const STATUS_MESSAGES = {
   Pending: (order) =>
-    `Assalam-o-Alaikum ${order.customer.name}, we've received your order ${order.orderNumber}. We'll call you shortly to confirm it.`,
+    `Dear Valuable Customer ${order.customer.name}, we've received your order ${order.orderNumber}. We'll call you shortly to confirm it - please don't mistake it for spam. Thank you!\n\n${BRAND_LINE}`,
   Confirmed: (order) =>
     `Your order ${order.orderNumber} has been confirmed! Total: Rs. ${order.pricing.totalAmount}. We'll notify you once it ships.`,
   Shipped: (order) =>

@@ -6,6 +6,8 @@ const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const { generateOrderWhatsAppLink } = require('../utils/whatsappLink');
 const { sendNewOrderAlertEmail } = require('../utils/mailer');
+const { verifyConfirmationScreenshot } = require('../utils/ocrVerify');
+const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 
 const attachWhatsAppLink = (order) => ({
   ...order.toObject(),
@@ -156,6 +158,39 @@ const createOrder = asyncHandler(async (req, res) => {
     }
     throw err;
   }
+});
+
+// POST /api/admin/orders/:id/confirmation-proof (admin uploads a screenshot of the WhatsApp
+// message they sent; OCR verifies it actually contains the order number AND the branding line
+// before firstMessageSent is allowed to flip true)
+const uploadConfirmationProof = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw ApiError.badRequest('Screenshot image is required');
+  }
+ 
+  const order = await Order.findById(req.params.id);
+  if (!order) {
+    throw ApiError.notFound('Order not found');
+  }
+ 
+  const verification = await verifyConfirmationScreenshot(req.file.buffer, order.orderNumber);
+ 
+  if (!verification.verified) {
+    const missing = [];
+    if (!verification.hasOrderNumber) missing.push('the order number');
+    if (!verification.hasBranding) missing.push('the "ARQ-DevTech" branding line');
+    throw ApiError.badRequest(
+      `Screenshot could not be verified - missing ${missing.join(' and ')}. Make sure the full ` +
+        'message is visible and clearly readable, then upload again.'
+    );
+  }
+ 
+  const result = await uploadBufferToCloudinary(req.file.buffer, 'orders/confirmation-proof');
+  order.firstMessageSent = true;
+  order.firstMessageProof = { url: result.secure_url, publicId: result.public_id };
+  await order.save();
+ 
+  res.status(200).json(new ApiResponse(200, attachWhatsAppLink(order), 'Confirmation message verified successfully'));
 });
 
 // GET /api/orders/lookup?orderNumber=X&phone=Y (public - guest order tracking, no login needed)
@@ -324,7 +359,15 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     if (!allowedNextStatuses.includes(orderStatus)) {
       throw ApiError.conflict(`Cannot change status from ${order.orderStatus} to ${orderStatus}`);
     }
-
+    // Cannot be bypassed by the admin, the client, or anyone else: the order-received WhatsApp
+    // message must be OCR-verified as sent (see uploadConfirmationProof) before an order can be
+    // confirmed. This is enforced here at the data layer, not just suggested in the UI.
+    if (orderStatus === 'Confirmed' && !order.firstMessageSent) {
+      throw ApiError.conflict(
+        'Cannot confirm this order until the order-received WhatsApp message has been sent and ' +
+          'verified. Upload a screenshot via POST /api/admin/orders/:id/confirmation-proof first.'
+      );
+    }
     if (orderStatus === 'Cancelled') {
       await restoreOrderStock(order);
       order.cancelReason = cancelReason || 'Cancelled by admin';
@@ -345,6 +388,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
 module.exports = {
   createOrder,
+  uploadConfirmationProof,
   lookupGuestOrder,
   cancelGuestOrder,
   getMyOrders,

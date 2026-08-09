@@ -128,6 +128,16 @@ const orderSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    // Tracks the mandatory OCR-verified "order received, expect a call" WhatsApp confirmation.
+    // An order cannot move Pending -> Confirmed until this is true (enforced in the controller).
+    firstMessageSent: {
+      type: Boolean,
+      default: false,
+    },
+    firstMessageProof: {
+      url: { type: String, default: null },
+      publicId: { type: String, default: null },
+    },
   },
   { timestamps: true }
 );
