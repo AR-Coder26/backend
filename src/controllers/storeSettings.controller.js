@@ -3,15 +3,13 @@ const StoreSettings = require('../models/StoreSettings.model');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 
-const mergeAndValidateAccount = (existing, incoming, label) => {
-  const merged = {
-    accountTitle: incoming.accountTitle !== undefined ? incoming.accountTitle : existing.accountTitle,
-    accountNumber: incoming.accountNumber !== undefined ? incoming.accountNumber : existing.accountNumber,
-    instructions: incoming.instructions !== undefined ? incoming.instructions : existing.instructions,
-    isActive: incoming.isActive !== undefined ? incoming.isActive : existing.isActive,
-  };
-  if (merged.isActive && (!merged.accountTitle || !merged.accountNumber)) {
-    throw ApiError.badRequest(`${label} account title and number are required before activating it`);
+const mergeAndValidateAccount = (existing, incoming, label, requiredFields = ['accountTitle', 'accountNumber']) => {
+  const merged = { ...existing, ...incoming };
+  if (merged.isActive) {
+    const missing = requiredFields.filter((field) => !merged[field]);
+    if (missing.length > 0) {
+      throw ApiError.badRequest(`${label}: ${missing.join(', ')} required before activating it`);
+    }
   }
   return merged;
 };
@@ -35,6 +33,15 @@ const getPublicPaymentSettings = asyncHandler(async (req, res) => {
           instructions: settings.easyPaisa.instructions,
         }
       : null,
+      bankTransfer: settings.bankTransfer.isActive
+      ? {
+          bankName: settings.bankTransfer.bankName,
+          accountTitle: settings.bankTransfer.accountTitle,
+          accountNumber: settings.bankTransfer.accountNumber,
+          iban: settings.bankTransfer.iban,
+          instructions: settings.bankTransfer.instructions,
+        }
+      : null,
   };
   publicPayload.minOrderValue = settings.minOrderValue;
   publicPayload.deliveryFlatRateNonKarachi = settings.deliveryFlatRateNonKarachi;
@@ -50,7 +57,7 @@ const getAdminStoreSettings = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/store-settings
 const updateStoreSettings = asyncHandler(async (req, res) => {
-  const { jazzCash, easyPaisa, minOrderValue, deliveryFlatRateNonKarachi } = req.body;
+  const { jazzCash, easyPaisa, bankTransfer, minOrderValue, deliveryFlatRateNonKarachi } = req.body;
 
   const settings = await StoreSettings.getSingleton();
 
@@ -59,6 +66,13 @@ const updateStoreSettings = asyncHandler(async (req, res) => {
   }
   if (easyPaisa) {
     settings.easyPaisa = mergeAndValidateAccount(settings.easyPaisa, easyPaisa, 'EasyPaisa');
+  }
+  if (bankTransfer) {
+    settings.bankTransfer = mergeAndValidateAccount(settings.bankTransfer, bankTransfer, 'Bank Transfer', [
+      'bankName',
+      'accountTitle',
+      'accountNumber',
+    ]);
   }
   if (minOrderValue !== undefined) {
     settings.minOrderValue = minOrderValue;

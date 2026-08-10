@@ -43,13 +43,18 @@ const createOrder = asyncHandler(async (req, res) => {
   // minOrderValue/delivery-charge calculation - avoids a second DB round trip.
   const settings = await StoreSettings.getSingleton();
 
-  // Never trust that a manual payment method (JazzCash/EasyPaisa) is actually available just
-  // because it's in the enum - the admin may not have configured/activated it yet in StoreSettings.
-  if (paymentMethod === 'JazzCash' || paymentMethod === 'EasyPaisa') {
-    const methodKey = paymentMethod === 'JazzCash' ? 'jazzCash' : 'easyPaisa';
-    if (!settings[methodKey].isActive) {
-      throw ApiError.badRequest(`${paymentMethod} is not currently available. Please choose a different payment method.`);
-    }
+  // Never trust that a manual payment method (JazzCash/EasyPaisa/BankTransfer) is actually
+  // available just because it's in the enum - the admin may not have configured/activated it
+  // yet in StoreSettings. Mapping-based so adding a future manual method needs one new entry
+  // here, not a new if/else branch.
+  const MANUAL_PAYMENT_SETTINGS_KEY = {
+    JazzCash: 'jazzCash',
+    EasyPaisa: 'easyPaisa',
+    BankTransfer: 'bankTransfer',
+  };
+  const settingsKey = MANUAL_PAYMENT_SETTINGS_KEY[paymentMethod];
+  if (settingsKey && !settings[settingsKey]?.isActive) {
+    throw ApiError.badRequest(`${paymentMethod} is not currently available. Please choose a different payment method.`);
   }
 
   let resolvedAddress = shippingAddress;

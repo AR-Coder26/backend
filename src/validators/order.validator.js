@@ -31,7 +31,7 @@ const createOrderValidator = [
   body('items.*.productId').isMongoId().withMessage('Invalid product ID'),
   body('items.*.variantId').isMongoId().withMessage('Invalid variant ID'),
   body('items.*.quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
-  body('paymentMethod').isIn(['COD', 'JazzCash', 'EasyPaisa']).withMessage('Invalid payment method'),
+  body('paymentMethod').isIn(['COD', 'JazzCash', 'EasyPaisa', 'BankTransfer']).withMessage('Invalid payment method'),
 ];
 
 const guestOrderLookupValidator = [

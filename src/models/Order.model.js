@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const PAYMENT_METHODS = ['COD', 'JazzCash', 'EasyPaisa'];
+const PAYMENT_METHODS = ['COD', 'JazzCash', 'EasyPaisa', 'BankTransfer'];
 const ORDER_STATUSES = ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'];
 
 const orderItemSchema = new mongoose.Schema(
