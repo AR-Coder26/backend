@@ -20,6 +20,14 @@ const run = async () => {
 
   await mongoose.connect(process.env.MONGO_URI);
 
+  // SECURITY CHECK: Prevent multiple admins if limit is reached
+  const adminCount = await User.countDocuments();
+  if (adminCount >= 1) { // Admin account cannot be created if 1 admin account already exists
+    console.error(`SECURITY NOTICE: An admin account already exists in the database. Multiple admin creation blocked.`);
+    await mongoose.disconnect();
+    process.exit(1);
+  }
+
   const existing = await User.findOne({ email: email.toLowerCase().trim() });
   if (existing) {
     console.error(`An admin with email ${email} already exists.`);
