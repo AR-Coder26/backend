@@ -116,4 +116,32 @@ const getMe = asyncHandler(async (req, res) => {
     );
 });
 
-module.exports = { login, logout, refreshAccessToken, getMe };
+// PATCH /api/admin/auth/change-password
+const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  const admin = await User.findById(req.admin._id).select('+password');
+
+  const isCurrentValid = await admin.comparePassword(currentPassword);
+  if (!isCurrentValid) {
+    throw ApiError.unauthorized('Current password is incorrect');
+  }
+
+  if (currentPassword === newPassword) {
+    throw ApiError.badRequest('New password must be different from the current password');
+  }
+
+  admin.password = newPassword;
+  admin.refreshTokenHash = null;
+  await admin.save();
+
+  clearAuthCookies(res, {
+    accessCookieName: COOKIE_NAMES.admin.access,
+    refreshCookieName: COOKIE_NAMES.admin.refresh,
+  });
+
+  res.status(200).json(new ApiResponse(200, null, 'Password changed successfully. Please log in again.'));
+});
+
+
+module.exports = { login, logout, refreshAccessToken, getMe, changePassword };
