@@ -6,6 +6,11 @@ const adminLoginValidator = [
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
+const adminChangePasswordValidator = [
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
+];
+
 const customerRegisterValidator = [
   body('name').trim().notEmpty().withMessage('Name is required').custom(noDangerousHtml),
   body('email').optional({ checkFalsy: true }).isEmail().withMessage('Provide a valid email'),
@@ -27,4 +32,4 @@ const customerLoginValidator = [
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
-module.exports = { adminLoginValidator, customerRegisterValidator, customerLoginValidator };
+module.exports = { adminLoginValidator, adminChangePasswordValidator, customerRegisterValidator, customerLoginValidator };
