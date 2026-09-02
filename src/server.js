@@ -1,5 +1,7 @@
-const dns = require('node:dns');
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+if (process.env.NODE_ENV === 'development') {
+  const dns = require('node:dns');
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+}
 
 const dotenv = require('dotenv');
 dotenv.config();
