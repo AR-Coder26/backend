@@ -1,5 +1,3 @@
-// backend/src/validators/category.validator.js
-
 const { body, param } = require('express-validator');
 const { noDangerousHtml } = require('./sharedValidators');
 
