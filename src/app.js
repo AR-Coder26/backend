@@ -33,9 +33,25 @@ app.set('trust proxy', 1);
 // Secure HTTP headers
 app.use(helmet());
 // CORS - only the configured frontend origin can call this API, with cookies allowed
+const allowedOrigins = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map((url) => url.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: (origin, callback) => {
+      // No Origin header at all = server-to-server call, curl, Postman, health-check pings, etc.
+      // These never carry cookies anyway, so they're safe to allow through.
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.warn(`CORS blocked request from unlisted origin: ${origin}`);
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );
