@@ -1,3 +1,4 @@
+// backend/src/validators/auth.validator.js
 const { body } = require('express-validator');
 const { noDangerousHtml } = require('./sharedValidators');
 
@@ -9,6 +10,40 @@ const adminLoginValidator = [
 const adminChangePasswordValidator = [
   body('currentPassword').notEmpty().withMessage('Current password is required'),
   body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
+];
+
+const honeypotFieldValidator = body('honeypot').optional({ checkFalsy: true }).isString().withMessage('Invalid request');
+
+const adminForgotPasswordValidator = [
+  body('email').trim().notEmpty().withMessage('Email is required').isEmail().withMessage('Provide a valid email'),
+  honeypotFieldValidator,
+];
+
+const adminVerifyOtpValidator = [
+  body('email').trim().notEmpty().withMessage('Email is required').isEmail().withMessage('Provide a valid email'),
+  body('otp')
+    .trim()
+    .notEmpty()
+    .withMessage('Verification code is required')
+    .isLength({ min: 6, max: 6 })
+    .withMessage('Verification code must be 6 digits')
+    .isNumeric()
+    .withMessage('Verification code must contain only digits'),
+  honeypotFieldValidator,
+];
+
+const adminResetPasswordWithOtpValidator = [
+  body('email').trim().notEmpty().withMessage('Email is required').isEmail().withMessage('Provide a valid email'),
+  body('resetToken')
+    .trim()
+    .notEmpty()
+    .withMessage('Reset token is required')
+    .isLength({ min: 64, max: 64 })
+    .withMessage('Invalid reset token')
+    .isHexadecimal()
+    .withMessage('Invalid reset token'),
+  body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
+  honeypotFieldValidator,
 ];
 
 const customerRegisterValidator = [
@@ -32,4 +67,12 @@ const customerLoginValidator = [
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
-module.exports = { adminLoginValidator, adminChangePasswordValidator, customerRegisterValidator, customerLoginValidator };
+module.exports = {
+  adminLoginValidator,
+  adminChangePasswordValidator,
+  adminForgotPasswordValidator,
+  adminVerifyOtpValidator,
+  adminResetPasswordWithOtpValidator,
+  customerRegisterValidator,
+  customerLoginValidator,
+};
