@@ -24,6 +24,7 @@ const orderAdminRoutes = require('./routes/orderAdmin.routes');
 const customerAddressRoutes = require('./routes/customerAddress.routes');
 const storeSettingsRoutes = require('./routes/storeSettings.routes');
 const storeSettingsAdminRoutes = require('./routes/storeSettingsAdmin.routes');
+const { connectDB } = require('./config/db');
 
 const app = express();
 
@@ -75,6 +76,15 @@ app.get('/api/health', (req, res) => {
     message: 'API is healthy',
     timestamp: new Date().toISOString(),
   });
+});
+
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Feature routes (auth, products, categories, brands, orders) get mounted here starting
