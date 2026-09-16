@@ -24,6 +24,8 @@ const orderAdminRoutes = require('./routes/orderAdmin.routes');
 const customerAddressRoutes = require('./routes/customerAddress.routes');
 const storeSettingsRoutes = require('./routes/storeSettings.routes');
 const storeSettingsAdminRoutes = require('./routes/storeSettingsAdmin.routes');
+const socialMediaLinkRoutes = require('./routes/socialMediaLink.routes');
+const socialMediaLinkAdminRoutes = require('./routes/socialMediaLinkAdmin.routes');
 const { connectDB } = require('./config/db');
 
 const app = express();
@@ -118,6 +120,8 @@ app.use('/api/admin/orders', orderAdminRoutes);
 app.use('/api/my-addresses', customerAddressRoutes);
 app.use('/api/store-settings', storeSettingsRoutes);
 app.use('/api/admin/store-settings', storeSettingsAdminRoutes);
+app.use('/api/social-links', socialMediaLinkRoutes);
+app.use('/api/admin/social-links', socialMediaLinkAdminRoutes);
 
 // Unmatched routes → 404
 app.use(notFound);
